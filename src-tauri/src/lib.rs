@@ -18,6 +18,7 @@ pub fn run() {
             commands::disable_job,
             commands::save_job,
             commands::save_raw_plist,
+            commands::validate_raw_plist,
             commands::create_job,
             commands::delete_job,
             commands::read_log_file,

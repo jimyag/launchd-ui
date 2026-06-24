@@ -27,6 +27,12 @@ export const disableJob = (label: string) =>
 export const saveJob = (plistPath: string, config: PlistConfig) =>
   invoke<void>("save_job", { plistPath, config })
 
+export const saveRawPlist = (plistPath: string, xml: string) =>
+  invoke<void>("save_raw_plist", { plistPath, xml })
+
+export const validateRawPlist = (xml: string) =>
+  invoke<void>("validate_raw_plist", { xml })
+
 export const createJob = (label: string, config: PlistConfig) =>
   invoke<string>("create_job", { label, config })
 

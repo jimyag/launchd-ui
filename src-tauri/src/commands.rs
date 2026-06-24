@@ -200,6 +200,11 @@ pub async fn save_raw_plist(plist_path: String, xml: String) -> Result<(), AppEr
 }
 
 #[tauri::command]
+pub async fn validate_raw_plist(xml: String) -> Result<(), AppError> {
+    plist_util::validate_raw_plist(&xml)
+}
+
+#[tauri::command]
 pub async fn delete_job(plist_path: String, label: String) -> Result<(), AppError> {
     let _ = launchctl::bootout(&plist_path);
     let _ = launchctl::disable(&label);
