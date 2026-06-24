@@ -218,6 +218,16 @@ fn validate_type(
     Ok(())
 }
 
+fn validate_required_key(dict: &plist::Dictionary, key: &str) -> Result<(), AppError> {
+    if dict.contains_key(key) {
+        Ok(())
+    } else {
+        Err(AppError::Plist(format!(
+            "{key} is required for launchd.plist"
+        )))
+    }
+}
+
 fn validate_resource_limits(dict: &plist::Dictionary, key: &str) -> Result<(), AppError> {
     let Some(value) = dict.get(key) else {
         return Ok(());
@@ -271,6 +281,8 @@ fn validate_launchd_plist_schema(value: &Value) -> Result<(), AppError> {
     let dict = value
         .as_dictionary()
         .ok_or_else(|| AppError::Plist("launchd plist must be a dictionary".to_string()))?;
+
+    validate_required_key(dict, "Label")?;
 
     for key in [
         "Label",
@@ -924,6 +936,22 @@ mod tests {
         let result = validate_raw_plist(xml);
         assert!(result.is_err());
         assert!(format!("{}", result.unwrap_err()).contains("Label must be a string"));
+    }
+
+    #[test]
+    fn test_validate_raw_plist_rejects_missing_label() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>"#;
+
+        let result = validate_raw_plist(xml);
+        assert!(result.is_err());
+        assert!(format!("{}", result.unwrap_err()).contains("Label is required"));
     }
 
     #[test]
