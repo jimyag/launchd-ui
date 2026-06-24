@@ -153,12 +153,26 @@ function normalizeResourceLimits(limits: ResourceLimits | null): ResourceLimits 
   return Object.values(limits).some((value) => value !== null) ? limits : null
 }
 
+function parseOptionalInteger(input: string): number | null {
+  const trimmed = input.trim()
+  if (!trimmed || !/^-?\d+$/.test(trimmed)) return null
+  return Number(trimmed)
+}
+
+function parseOptionalNonNegativeInteger(input: string): number | null {
+  const value = parseOptionalInteger(input)
+  return value !== null && value >= 0 ? value : null
+}
+
 function setLimitValue(
   limits: ResourceLimits | null,
   key: keyof ResourceLimits,
   value: string,
 ): ResourceLimits | null {
-  const next = { ...(limits ?? emptyResourceLimits()), [key]: value ? Number(value) : null }
+  const next = {
+    ...(limits ?? emptyResourceLimits()),
+    [key]: parseOptionalNonNegativeInteger(value),
+  }
   return normalizeResourceLimits(next)
 }
 
@@ -268,7 +282,7 @@ export function JobForm({ open, onClose, onSave, onSaveRaw, editingJob }: JobFor
       environment_variables: parseEnvironmentVariables(environmentText),
       root_directory: config.root_directory?.trim() || null,
       umask: config.umask?.trim() || null,
-      throttle_interval: config.throttle_interval || null,
+      throttle_interval: config.throttle_interval ?? null,
       start_on_mount: config.start_on_mount || null,
       watch_paths: parseLines(watchPathsText),
       queue_directories: parseLines(queueDirectoriesText),
@@ -808,7 +822,7 @@ export function JobForm({ open, onClose, onSave, onSaveRaw, editingJob }: JobFor
                     onChange={(e) =>
                       setConfig({
                         ...config,
-                        throttle_interval: e.target.value ? Number(e.target.value) : null,
+                        throttle_interval: parseOptionalNonNegativeInteger(e.target.value),
                       })
                     }
                   />
@@ -831,7 +845,7 @@ export function JobForm({ open, onClose, onSave, onSaveRaw, editingJob }: JobFor
                     onChange={(e) =>
                       setConfig({
                         ...config,
-                        nice: e.target.value ? Number(e.target.value) : null,
+                        nice: parseOptionalInteger(e.target.value),
                       })
                     }
                   />
@@ -1007,12 +1021,15 @@ export function JobForm({ open, onClose, onSave, onSaveRaw, editingJob }: JobFor
               {isEditing && (
                 <div className="grid gap-3 rounded-md border bg-muted/20 p-3">
                   <div>
-                    <h4 className="text-sm font-medium">Raw plist XML</h4>
+                    <Label htmlFor="raw-plist-xml" className="text-sm font-medium">
+                      Raw plist XML
+                    </Label>
                     <p className="mt-1 text-xs text-muted-foreground">
                       Use this for unsupported or complex keys. Validation uses plutil before saving.
                     </p>
                   </div>
                   <textarea
+                    id="raw-plist-xml"
                     className="min-h-64 rounded-md border bg-background px-3 py-2 text-xs font-mono outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
                     value={rawXml}
                     onChange={(e) => {

@@ -79,7 +79,7 @@ describe("JobForm advanced configuration", () => {
       target: { value: "022" },
     })
     fireEvent.change(screen.getByLabelText(/throttle interval/i), {
-      target: { value: "30" },
+      target: { value: "0" },
     })
     fireEvent.change(screen.getByLabelText(/nice/i), {
       target: { value: "5" },
@@ -107,7 +107,7 @@ describe("JobForm advanced configuration", () => {
       },
       root_directory: "/var/empty",
       umask: "022",
-      throttle_interval: 30,
+      throttle_interval: 0,
       watch_paths: ["/tmp/input", "/tmp/other"],
       queue_directories: ["/tmp/queue"],
       process_type: "Background",
@@ -121,6 +121,33 @@ describe("JobForm advanced configuration", () => {
         number_of_files: 4096,
       },
     })
+  })
+
+  it("drops invalid resource limit integers", async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <JobForm
+        open={true}
+        onClose={vi.fn()}
+        onSave={onSave}
+        editingJob={job()}
+      />
+    )
+
+    await user.click(screen.getByRole("button", { name: /advanced configuration/i }))
+
+    const fileLimitInputs = screen.getAllByPlaceholderText("65536")
+    fireEvent.change(fileLimitInputs[0], { target: { value: "1.5" } })
+    fireEvent.change(fileLimitInputs[1], { target: { value: "abc" } })
+
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+    const [config] = onSave.mock.calls[0]
+    expect(config.soft_resource_limits).toBeNull()
+    expect(config.hard_resource_limits).toBeNull()
   })
 
   it("validates raw plist XML", async () => {
@@ -141,6 +168,7 @@ describe("JobForm advanced configuration", () => {
     )
 
     await user.click(screen.getByRole("button", { name: /advanced configuration/i }))
+    expect(screen.getByLabelText(/raw plist xml/i)).toHaveValue(basePlist.raw_xml)
     await user.click(screen.getByRole("button", { name: "Validate XML" }))
 
     expect(validateRaw).toHaveBeenCalledWith(basePlist.raw_xml)
@@ -167,7 +195,7 @@ describe("JobForm advanced configuration", () => {
     )
 
     await user.click(screen.getByRole("button", { name: /advanced configuration/i }))
-    fireEvent.change(screen.getByDisplayValue(basePlist.raw_xml), {
+    fireEvent.change(screen.getByLabelText(/raw plist xml/i), {
       target: { value: "<plist><dict></dict></plist>" },
     })
     await user.click(screen.getByRole("button", { name: "Save Raw XML" }))

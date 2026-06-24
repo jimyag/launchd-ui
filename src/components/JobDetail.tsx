@@ -34,7 +34,7 @@ function DetailRow({ label, value }: { label: string; value: string | null | und
 }
 
 function formatList(values: string[] | null | undefined): string | undefined {
-  return values && values.length > 0 ? values.join("\n") : undefined
+  return values && values.length > 0 ? values.join(", ") : undefined
 }
 
 function formatResourceLimits(limits: ResourceLimits | null | undefined): string | undefined {
@@ -56,7 +56,7 @@ function formatResourceLimits(limits: ResourceLimits | null | undefined): string
     .filter(([, value]) => value !== null)
     .map(([key, value]) => `${labels[key as keyof ResourceLimits]}=${value}`)
 
-  return rows.length > 0 ? rows.join("\n") : undefined
+  return rows.length > 0 ? rows.join(", ") : undefined
 }
 
 export function JobDetail({ plistPath, open, onClose, onEdit }: JobDetailProps) {
@@ -194,7 +194,7 @@ export function JobDetail({ plistPath, open, onClose, onEdit }: JobDetailProps) 
                   <DetailRow
                     label="Throttle"
                     value={
-                      job.plist.throttle_interval
+                      job.plist.throttle_interval !== null && job.plist.throttle_interval !== undefined
                         ? `${job.plist.throttle_interval}s`
                         : undefined
                     }
