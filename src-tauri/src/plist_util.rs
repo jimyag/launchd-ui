@@ -268,7 +268,6 @@ fn validate_launchd_plist_schema(value: &Value) -> Result<(), AppError> {
         "BundleProgram",
         "RootDirectory",
         "WorkingDirectory",
-        "Umask",
         "StandardInPath",
         "StandardOutPath",
         "StandardErrorPath",
@@ -321,6 +320,9 @@ fn validate_launchd_plist_schema(value: &Value) -> Result<(), AppError> {
         validate_type(dict, key, "an array of strings", is_string_array)?;
     }
 
+    validate_type(dict, "Umask", "a string or integer", |value| {
+        value.as_string().is_some() || is_integer(value)
+    })?;
     validate_type(
         dict,
         "EnvironmentVariables",
@@ -870,6 +872,22 @@ mod tests {
         let result = validate_raw_plist(xml);
         assert!(result.is_err());
         assert!(format!("{}", result.unwrap_err()).contains("Label must be a string"));
+    }
+
+    #[test]
+    fn test_validate_raw_plist_accepts_integer_umask() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.umask</string>
+    <key>Umask</key>
+    <integer>18</integer>
+</dict>
+</plist>"#;
+
+        validate_raw_plist(xml).unwrap();
     }
 
     #[test]
