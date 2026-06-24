@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useId, useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -244,6 +244,7 @@ export function JobForm({ open, onClose, onSave, onSaveRaw, editingJob }: JobFor
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [homeDir, setHomeDir] = useState<string | null>(null)
+  const advancedSectionId = useId()
 
   const isEditing = !!editingJob
 
@@ -742,6 +743,8 @@ export function JobForm({ open, onClose, onSave, onSaveRaw, editingJob }: JobFor
               type="button"
               className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
               onClick={() => setAdvancedOpen((value) => !value)}
+              aria-expanded={advancedOpen}
+              aria-controls={advancedSectionId}
             >
               <div>
                 <h3 className="text-sm font-medium">Advanced configuration</h3>
@@ -757,24 +760,24 @@ export function JobForm({ open, onClose, onSave, onSaveRaw, editingJob }: JobFor
             </button>
 
             {advancedOpen && (
-            <div className="grid gap-4 border-t p-4">
-              <div className="grid gap-1.5">
-                <Label htmlFor="environment">
-                  Environment Variables <span className="text-xs font-normal text-muted-foreground">(optional)</span>
-                </Label>
-                <textarea
-                  id="environment"
-                  className="min-h-20 rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-                  placeholder={"PATH=/usr/local/bin:/usr/bin:/bin\nNODE_ENV=production"}
-                  value={environmentText}
-                  onChange={(e) => setEnvironmentText(e.target.value)}
-                  spellCheck={false}
-                  autoCorrect="off"
-                />
-                <p className="text-xs text-muted-foreground">
-                  One KEY=value pair per line. Values are written as strings.
-                </p>
-              </div>
+              <div id={advancedSectionId} className="grid gap-4 border-t p-4">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="environment">
+                    Environment Variables <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+                  </Label>
+                  <textarea
+                    id="environment"
+                    className="min-h-20 rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                    placeholder={"PATH=/usr/local/bin:/usr/bin:/bin\nNODE_ENV=production"}
+                    value={environmentText}
+                    onChange={(e) => setEnvironmentText(e.target.value)}
+                    spellCheck={false}
+                    autoCorrect="off"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    One KEY=value pair per line. Values are written as strings.
+                  </p>
+                </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-1.5">
@@ -1040,7 +1043,9 @@ export function JobForm({ open, onClose, onSave, onSaveRaw, editingJob }: JobFor
                     autoCorrect="off"
                   />
                   {rawStatus && (
-                    <div className="text-xs text-muted-foreground">{rawStatus}</div>
+                    <div role="status" aria-live="polite" className="text-xs text-muted-foreground">
+                      {rawStatus}
+                    </div>
                   )}
                   <div className="flex justify-end gap-2">
                     <Button
@@ -1062,7 +1067,7 @@ export function JobForm({ open, onClose, onSave, onSaveRaw, editingJob }: JobFor
                   </div>
                 </div>
               )}
-            </div>
+              </div>
             )}
           </div>
 

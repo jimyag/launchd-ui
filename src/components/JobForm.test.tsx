@@ -167,12 +167,20 @@ describe("JobForm advanced configuration", () => {
       />
     )
 
-    await user.click(screen.getByRole("button", { name: /advanced configuration/i }))
+    const advancedButton = screen.getByRole("button", { name: /advanced configuration/i })
+    expect(advancedButton).toHaveAttribute("aria-expanded", "false")
+
+    await user.click(advancedButton)
+
+    expect(advancedButton).toHaveAttribute("aria-expanded", "true")
+    const advancedPanelId = advancedButton.getAttribute("aria-controls")
+    expect(advancedPanelId).toBeTruthy()
+    expect(document.getElementById(advancedPanelId ?? "")).toBeInTheDocument()
     expect(screen.getByLabelText(/raw plist xml/i)).toHaveValue(basePlist.raw_xml)
     await user.click(screen.getByRole("button", { name: "Validate XML" }))
 
     expect(validateRaw).toHaveBeenCalledWith(basePlist.raw_xml)
-    expect(await screen.findByText("Raw plist is valid.")).toBeInTheDocument()
+    expect(await screen.findByRole("status")).toHaveTextContent("Raw plist is valid.")
   })
 
   it("validates before saving raw plist XML", async () => {

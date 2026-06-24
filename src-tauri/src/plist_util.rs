@@ -188,10 +188,18 @@ fn is_integer(value: &Value) -> bool {
     value.as_unsigned_integer().is_some() || value.as_signed_integer().is_some()
 }
 
+fn is_non_negative_integer(value: &Value) -> bool {
+    value.as_unsigned_integer().is_some()
+}
+
 fn is_string_array(value: &Value) -> bool {
     value
         .as_array()
         .is_some_and(|values| values.iter().all(|value| value.as_string().is_some()))
+}
+
+fn is_string_or_string_array(value: &Value) -> bool {
+    value.as_string().is_some() || is_string_array(value)
 }
 
 fn validate_type(
@@ -231,7 +239,12 @@ fn validate_resource_limits(dict: &plist::Dictionary, key: &str) -> Result<(), A
         "ResidentSetSize",
         "Stack",
     ] {
-        validate_type(limits, limit_key, "an integer", is_integer)?;
+        validate_type(
+            limits,
+            limit_key,
+            "a non-negative integer",
+            is_non_negative_integer,
+        )?;
     }
     Ok(())
 }
@@ -240,7 +253,7 @@ fn validate_calendar_interval(value: &Value) -> bool {
     let validate_dict = |dict: &plist::Dictionary| {
         ["Minute", "Hour", "Day", "Weekday", "Month"]
             .iter()
-            .all(|key| dict.get(key).is_none_or(is_integer))
+            .all(|key| dict.get(key).is_none_or(is_non_negative_integer))
     };
 
     if let Some(dict) = value.as_dictionary() {
@@ -263,7 +276,6 @@ fn validate_launchd_plist_schema(value: &Value) -> Result<(), AppError> {
         "Label",
         "UserName",
         "GroupName",
-        "LimitLoadToSessionType",
         "Program",
         "BundleProgram",
         "RootDirectory",
@@ -277,6 +289,13 @@ fn validate_launchd_plist_schema(value: &Value) -> Result<(), AppError> {
     ] {
         validate_type(dict, key, "a string", |value| value.as_string().is_some())?;
     }
+
+    validate_type(
+        dict,
+        "LimitLoadToSessionType",
+        "a string or array of strings",
+        is_string_or_string_array,
+    )?;
 
     for key in [
         "Disabled",
@@ -305,10 +324,11 @@ fn validate_launchd_plist_schema(value: &Value) -> Result<(), AppError> {
         "ExitTimeOut",
         "ThrottleInterval",
         "StartInterval",
-        "Nice",
     ] {
-        validate_type(dict, key, "an integer", is_integer)?;
+        validate_type(dict, key, "a non-negative integer", is_non_negative_integer)?;
     }
+
+    validate_type(dict, "Nice", "an integer", is_integer)?;
 
     for key in [
         "LimitLoadToHosts",
@@ -321,7 +341,7 @@ fn validate_launchd_plist_schema(value: &Value) -> Result<(), AppError> {
     }
 
     validate_type(dict, "Umask", "a string or integer", |value| {
-        value.as_string().is_some() || is_integer(value)
+        value.as_string().is_some() || is_non_negative_integer(value)
     })?;
     validate_type(
         dict,
@@ -437,9 +457,11 @@ pub fn write_plist(path: &str, config: &PlistConfig) -> Result<(), AppError> {
         plist::Dictionary::new()
     } else {
         Value::from_reader(Cursor::new(config.raw_xml.as_bytes()))
-            .ok()
-            .and_then(|value| value.into_dictionary())
-            .unwrap_or_default()
+            .map_err(|e| AppError::Plist(format!("invalid raw_xml: {e}")))?
+            .into_dictionary()
+            .ok_or_else(|| {
+                AppError::Plist("invalid raw_xml: top-level plist must be a dictionary".to_string())
+            })?
     };
 
     for key in [
@@ -654,7 +676,7 @@ pub fn validate_raw_plist(xml: &str) -> Result<(), AppError> {
         .map_err(|e| AppError::Plist(format!("invalid plist XML: {e}")))?;
     validate_launchd_plist_schema(&value)?;
 
-    let mut child = std::process::Command::new("plutil")
+    let mut child = std::process::Command::new("/usr/bin/plutil")
         .args(["-lint", "-"])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
@@ -700,6 +722,36 @@ mod tests {
         file.write_all(xml.as_bytes()).unwrap();
         file.flush().unwrap();
         file
+    }
+
+    fn minimal_config(raw_xml: String) -> PlistConfig {
+        PlistConfig {
+            label: "com.example.test".to_string(),
+            program: None,
+            program_arguments: None,
+            run_at_load: None,
+            keep_alive: None,
+            start_interval: None,
+            start_calendar_interval: None,
+            standard_out_path: None,
+            standard_error_path: None,
+            working_directory: None,
+            environment_variables: None,
+            disabled: None,
+            wake_system: None,
+            root_directory: None,
+            umask: None,
+            throttle_interval: None,
+            start_on_mount: None,
+            watch_paths: None,
+            queue_directories: None,
+            process_type: None,
+            nice: None,
+            abandon_process_group: None,
+            soft_resource_limits: None,
+            hard_resource_limits: None,
+            raw_xml,
+        }
     }
 
     #[test]
@@ -888,6 +940,67 @@ mod tests {
 </plist>"#;
 
         validate_raw_plist(xml).unwrap();
+    }
+
+    #[test]
+    fn test_validate_raw_plist_accepts_session_type_array() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.sessions</string>
+    <key>LimitLoadToSessionType</key>
+    <array>
+        <string>Aqua</string>
+        <string>Background</string>
+    </array>
+</dict>
+</plist>"#;
+
+        validate_raw_plist(xml).unwrap();
+    }
+
+    #[test]
+    fn test_validate_raw_plist_rejects_negative_unsigned_integer() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.negative</string>
+    <key>StartInterval</key>
+    <integer>-1</integer>
+</dict>
+</plist>"#;
+
+        let result = validate_raw_plist(xml);
+        assert!(result.is_err());
+        assert!(format!("{}", result.unwrap_err()).contains("StartInterval"));
+    }
+
+    #[test]
+    fn test_write_plist_rejects_invalid_raw_xml() {
+        let file = NamedTempFile::with_suffix(".plist").unwrap();
+        let path = file.path().to_str().unwrap();
+        let config = minimal_config("<plist><dict>".to_string());
+
+        let result = write_plist(path, &config);
+
+        assert!(result.is_err());
+        assert!(format!("{}", result.unwrap_err()).contains("invalid raw_xml"));
+    }
+
+    #[test]
+    fn test_write_plist_rejects_non_dictionary_raw_xml() {
+        let file = NamedTempFile::with_suffix(".plist").unwrap();
+        let path = file.path().to_str().unwrap();
+        let config = minimal_config("<plist><array></array></plist>".to_string());
+
+        let result = write_plist(path, &config);
+
+        assert!(result.is_err());
+        assert!(format!("{}", result.unwrap_err()).contains("top-level plist"));
     }
 
     #[test]
